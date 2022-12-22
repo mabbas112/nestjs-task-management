@@ -1,14 +1,18 @@
 import { Test, TestingModule } from "@nestjs/testing"
 import { getRepositoryToken } from "@nestjs/typeorm"
-import { Repository } from "typeorm"
+import { Like, Repository } from "typeorm"
 import { Task } from './task.entity';
 import { TasksService } from "./tasks.service"
+import { NotFoundException } from '@nestjs/common';
+import { FilterTasksDto } from "./dto/filter-tasks.dto";
+import { TaskStatus } from "./task-status.enum";
 
 const mockUser: any = { id: 1, username: 'test user' }
 
 describe('TasksService', () => {
+
     let taskService: TasksService
-    let tasksRepositroy: Repository<Task> |  any;
+    let tasksRepositroy: Repository<Task> | any;
 
     beforeEach(async () => {
         const module: TestingModule = await Test.createTestingModule({
@@ -16,7 +20,11 @@ describe('TasksService', () => {
                 {
                     provide: getRepositoryToken(Task),
                     useValue: {
-                        findOne: jest.fn()
+                        findOne: jest.fn(),
+                        insert: jest.fn(),
+                        delete: jest.fn(),
+                        find: jest.fn(),
+                        save: jest.fn(),
                     },
                 }
             ]
@@ -27,9 +35,25 @@ describe('TasksService', () => {
 
     })
 
+    describe('getAllTasks', () => {
+        it("should get all tasks from repository", async () => {
+            const filters: FilterTasksDto = { status: TaskStatus.IN_PROGRESS, search: 'some search query' }
+            jest.spyOn(tasksRepositroy, 'find').mockResolvedValue('ResolvedValue')
+            expect(tasksRepositroy.find).not.toHaveBeenCalled()
+            const result = await taskService.getAllTasks(filters, mockUser)
+            expect(result).toEqual('ResolvedValue')
+            expect(tasksRepositroy.find).toHaveBeenCalledWith({
+                where: [
+                    { userId: mockUser.id, status: filters.status, title: Like(`%${filters.search}%`) },
+                    { userId: mockUser.id, status: filters.status, description: Like(`%${filters.search}%`) }
+                ]
+            })
+        })
+    })
+
     describe('getTaskById', () => {
 
-        it("Task found and return", async () => {
+        it("should found a task and return", async () => {
             let result: Task;
             const mockTask = { title: "test task", desc: "test desc" }
             jest.spyOn(tasksRepositroy, 'findOne').mockResolvedValue(mockTask)
@@ -37,179 +61,59 @@ describe('TasksService', () => {
             expect(result).toEqual(mockTask)
         })
 
-        it('Task not found return an exception', () => {
+        it('should not found a task and return an exception', () => {
             jest.spyOn(tasksRepositroy, 'findOne').mockResolvedValue(null)
             expect(taskService.getTaskById(1, mockUser)).rejects.toThrow(NotFoundException)
         })
     })
+
+    describe('createTask', () => {
+
+        it('should create task', async () => {
+            jest.spyOn(tasksRepositroy, 'insert').mockResolvedValue('ResolvedValue')
+            const result = await taskService.createTasks({
+                tasks: [{
+                    title: "text title",
+                    description: "text description",
+                }]
+            }, mockUser);
+            expect(result).toEqual('ResolvedValue')
+        })
+    })
+
+    describe('deleteTask', () => {
+
+        it('should delete a task of given id', async () => {
+
+            jest.spyOn(tasksRepositroy, 'delete').mockResolvedValue('ResolvedValue')
+            const result = await taskService.deleteTask(1, mockUser)
+            expect(result).toEqual('ResolvedValue')
+            expect(tasksRepositroy.delete).toHaveBeenCalledWith({ id: 1, userId: mockUser.id })
+
+        })
+
+        it('should return an exception of id not found', async () => {
+            jest.spyOn(tasksRepositroy, 'delete').mockResolvedValue({ affected: 0 })
+            expect(taskService.deleteTask(1, mockUser)).rejects.toThrow(NotFoundException)
+        })
+    })
+
+    describe('updateTask', () => {
+        it('should return updated task', async () => {
+            const save = jest.fn().mockResolvedValue(true)
+           taskService.getTaskById = jest.fn().mockResolvedValue({
+            status :TaskStatus.OPEN,
+            save
+           })
+           expect(taskService.getTaskById).not.toHaveBeenCalled()
+           expect(save).not.toHaveBeenCalled()
+           const result =await taskService.updateTask(1, TaskStatus.DONE, mockUser);
+           expect(taskService.getTaskById).toHaveBeenCalled()
+           expect(save).toHaveBeenCalled()
+           expect(result).toEqual({
+            status :TaskStatus.DONE,
+            save
+           })
+        })
+    })
 })
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-// describe("getAllTasks", () => {
-//     it("get all tasks from repository", async () => {
-//         const filters: FilterTasksDto = { status: TaskStatus.IN_PROGRESS, search: 'some search query' }
-//         let result: Task[];
-//         jest.spyOn(taskService, 'getAllTasks').mockImplementation((): any => result)
-//         result = await taskService.getAllTasks(filters, mockUser)
-//         expect(taskService.getAllTasks).toHaveBeenCalled()
-//     })
-// })
-
-
-
-
-// import { TasksService } from './tasks.service';
-// import { TestingModule, Test } from '@nestjs/testing';
-// import { getRepositoryToken } from '@nestjs/typeorm';
-// import { Repository } from 'typeorm';
-// import { Task } from './task.entity';
-// import { FilterTasksDto } from './dto/filter-tasks.dto';
-// import { TaskStatus } from './task-status.enum';
-
-// const mockUser: any = { username: 'test user' }
-
-
-// class TaskServiceMock {
-//     getAllTasks(filter: any, user: any) {
-//         return []
-//     }
-
-//     getTaskById() {
-
-//     }
-
-//     deleteTask() {
-
-//     }
-
-//     updateTask() {
-
-//     }
-
-//     createTasks() {
-
-//     }
-// }
-
-// describe('tasks service', () => {
-//     let tasksService: TasksService;
-//     let taskRepository: Repository<Task>;
-//     beforeEach(
-//         async () => {
-//             const module: TestingModule = await Test.createTestingModule({
-//                 providers: [TasksService,
-//                     { provide: TasksService, useClass: TaskServiceMock },
-//                     {
-//                         provide: getRepositoryToken(Task),
-//                         useClass: Repository,
-//                         // useValue: {
-//                         //     createQueryBuilder: jest.fn(),
-//                         //     where: jest.fn(),
-//                         //     andWhere: jest.fn(),
-//                         //     getMany: jest.fn(),
-//                         //     getOne: jest.fn(),
-//                         //     delete: jest.fn(),
-//                         //     values: jest.fn(),
-//                         // }
-//                     }],
-//             }).compile();
-
-//             tasksService = module.get<TasksService>(TasksService);
-//             taskRepository = module.get<Repository<Task>>(getRepositoryToken(Task));
-//         }
-
-//     )
-
-//     it('ApiService - should be defined', () => {
-//         expect(tasksService).toBeDefined();
-//     });
-
-//     it('taskRepository should be defined', () => {
-//         expect(taskRepository).toBeDefined()
-//     })
-
-//     it('api service getAllTasks', () => {
-//         const filters: FilterTasksDto = { status: TaskStatus.IN_PROGRESS, search: 'some search query' }
-//         jest.spyOn(tasksService, 'getAllTasks')
-//         const result = tasksService.getAllTasks(filters, mockUser)
-//         expect(tasksService.getAllTasks).toHaveBeenCalled()
-//         expect(result).toEqual([])
-//     })
-
-//     // describe('getAllTasks', () => {
-//     //     it("get all tasks from repository", async () => {
-//     //         const filters: FilterTasksDto = { status: TaskStatus.IN_PROGRESS, search: 'some search query' }
-//     //         await tasksService.getAllTasks(filters, mockUser)
-//     //         expect(tasksService.getAllTasks).toHaveBeenCalled()
-//     //     })
-//     // })
-
-// })
-
-
-// import { Test } from "@nestjs/testing";
-// import { Repository } from "typeorm";
-// import { FilterTasksDto } from "./dto/filter-tasks.dto";
-// import { TaskStatus } from "./task-status.enum";
-// import { Task } from './task.entity';
-// import { TasksService } from "./tasks.service";
-// import { TasksModule }  from './tasks.module';
-// import { TasksController } from './tasks.controller';
-// import { TypeOrmModule } from '@nestjs/typeorm';
-// import { AuthModule } from '../auth/auth.module';
-import { NotFoundException } from '@nestjs/common';
-
-
-// const mockTaskRepository = () => ({
-//     getAllTasks: jest.fn()
-// })
-// const mockUser: any = { username : 'test user' }
-
-// describe('tasksService', () => {
-//     let tasksService: TasksService;
-//     let taskRepository : any;
-//     beforeEach(async () => {
-//         const module = await Test.createTestingModule({
-//             imports: [
-//                 TypeOrmModule.forFeature([Task]),
-//                 AuthModule, TasksModule
-//               ],
-//               controllers: [ TasksController ],
-//             providers: [
-//                 TasksService,
-//                 { provide: Task, useFactory: mockTaskRepository }
-//             ]
-//         }).compile();
-//         tasksService = await module.get<TasksService>(TasksService)
-//         taskRepository = await module.get<Task>(Task)
-
-//         console.log({
-//             taskRepository, tasksService
-//         })
-//     })
-
-//     describe('getAllTasks', ()=>{
-//         it("get all tasks from repository", ()=> {
-//              expect(tasksService.getAllTasks).toBeCalled()
-//             // const filters : FilterTasksDto = { status : TaskStatus.IN_PROGRESS, search : 'some search query' }
-//             // tasksService.getAllTasks(filters, mockUser)
-//             // expect(tasksService.getAllTasks).toHaveBeenCalled()
-//         })
-//     })
-// })

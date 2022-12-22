@@ -18,11 +18,13 @@ export class AuthService {
     signUp = async (authCredential: AuthCredential): Promise<void> => {
 
         const { username, password } = authCredential
+        const dSalt = await bcrypt.genSalt();
+
         const auth = new Auth();
         auth.username = username;
-        const dSalt = await bcrypt.genSalt();
         auth.salt = dSalt
         auth.password = await this.hashPassword(password, dSalt);
+        
         try {
             await this.auth.save(auth);
         } catch (error) {
@@ -54,7 +56,7 @@ export class AuthService {
         }
     }
 
-    private hashPassword = async (password: string, salt: string): Promise<string> => {
+    hashPassword = async (password: string, salt: string): Promise<string> => {
         return await bcrypt.hash(password, salt)
     }
 

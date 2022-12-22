@@ -21,8 +21,8 @@ export class TasksService {
 
         return await this.taskRepository.find({
             where: [
-                { userId: user.id, status, title: status && Like(`%${search}%`) },
-                { userId: user.id, status, description: status && Like(`%${search}%`) }
+                { userId: user.id, status, title: Like(`%${search}%`) },
+                { userId: user.id, status, description: Like(`%${search}%`) }
             ]
         })
     }
@@ -48,7 +48,7 @@ export class TasksService {
         await task.save()
         return task;
     }
-
+ 
     createTasks = async (createTasksDto: CreateTasksDto, user: Auth) => {
 
         let transformedTasks = [];
@@ -61,6 +61,7 @@ export class TasksService {
             transformedTasks.push(task);
         }
         
-        await this.taskRepository.insert(transformedTasks)
+        const result = await this.taskRepository.insert(transformedTasks)
+        return result
     }
 }
